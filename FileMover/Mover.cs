@@ -51,6 +51,9 @@ namespace FileMover
         private void Timer_Elapsed(object sender, ElapsedEventArgs e)
         {
             string[] files = { };
+            string currentFolder = sourceFolder;
+            bool iterate = true;
+
             log.Debug(ID + " - Checking Source lock");
             if (!sourceLock)
             {
@@ -59,158 +62,158 @@ namespace FileMover
                 if (Directory.Exists(sourceFolder))
                 {
                     log.Debug(ID + " - Source folder exists");
-                    try
+                    log.Debug(ID + " - Setting source lock");
+                    sourceLock = true;
+                    log.Debug(ID + " - Getting filenames from source");
+                    while (iterate)
                     {
-                        log.Debug(ID + " - Setting source lock");
-                        sourceLock = true;
-                        log.Debug(ID + " - Getting filenames from source");
-                        
-                        files = Directory.GetFiles(sourceFolder, "*", SearchOption.AllDirectories);                     
-                    }
-                    catch(Exception error)
-                    {
-                        log.Error(ID + " - Unable to get filenames from source");
-                        log.Error(error.Message);
-                        log.Debug(ID + " - Unsetting source lock");
-                        sourceLock = false;
-                        return;
-                    }
-                    log.Debug(ID + " - Checking if file count is greater than 0");
-                    if (files.Count<string>() > 0)
-                    {
-                        log.Debug(string.Format(ID + " - File count is {0}", files.Count<string>()));
-                        log.Debug(ID + " - Setting Source Lock to true");
-                        sourceLock = true;
-                        log.Debug(string.Format(ID + " - Beginning file iteration of {0}", sourceFolder));
-                        //foreach (string file in files)
-                        Parallel.ForEach<string>(files, (file) =>
-                        {
-                            ParallelOptions parallelOptions = new ParallelOptions();
-                            parallelOptions.MaxDegreeOfParallelism = Environment.ProcessorCount * 2;
-                            log.Debug(string.Format(ID + " - Full path is {0}", file));
-                            string fileName = Path.GetFileName(file);
-                            log.Debug(string.Format(ID + " - Filename is {0}", fileName));
-                            string tempFile = file;
-                            bool success = true;
-                            foreach (string rootFolder in destFolders)
-                            {
-                                string destFolder = "";
-                                string destFile = "";
-
-                                try
-                                {
-                                    destFolder = Path.Combine(rootFolder, Path.GetDirectoryName(file).Substring(sourceFolder.Length + 1));
-                                    destFile = Path.Combine(destFolder, fileName);
-                                }
-                                catch (Exception error)
-                                {
-                                    log.Error(ID + " - " + error.Message);
-                                    success = false;
-                                    break;
-                                }
-                                log.Debug(string.Format(ID + " - Destination filename is {0}", destFile));
-                                log.Debug(ID + " - Checking if destination folder exists");
-                                if (!Directory.Exists(destFolder))
-                                {
-                                    log.Debug(string.Format(ID + " - Destination folder {0} did not exist.  Creating folder now", destFolder));
-                                    try
-                                    {
-                                        Directory.CreateDirectory(destFolder);
-                                    }
-                                    catch (Exception error)
-                                    {
-                                        log.Error(string.Format(ID + " - Unable to create directory: {0}\n\t" + error.Message, destFolder));
-                                        break;
-                                    }
-                                }
-                                try
-                                {
-                                    log.Debug(string.Format(ID + " - Beginning transfer of {0} to {1}", tempFile, destFile));
-                                    File.Copy(tempFile, destFile, true);
-                                    if (localMove)
-                                    {
-                                        tempFile = destFile;
-                                    }
-                                }
-                                catch (Exception error)
-                                {
-                                    log.Error(ID + " - " + error.Message);
-                                    success = false;
-                                    break;
-                                }
-                                log.Info(string.Format(ID + " - Successfully copied file {0} to {1}", fileName, destFile));
-                            }
-                            if (success)
-                            {
-                                log.Debug(string.Format(ID + " - Deleting file {0}", file));
-                                try
-                                {
-                                    File.Delete(file);
-                                }
-                                catch (Exception error)
-                                {
-                                    log.Warn(ID + " - Error deleting file: " + error.Message);
-                                }
-                                if (Directory.GetFiles(Path.GetDirectoryName(file), "*", SearchOption.AllDirectories).Count() == 0 && Path.GetDirectoryName(file) != sourceFolder)
-                                {
-                                    log.Debug(string.Format(ID + " - Source Folder has had all files copied, removing folder {0}", Path.GetDirectoryName(file)));
-                                    try
-                                    {
-                                        Directory.Delete(Path.GetDirectoryName(file), true);
-                                    }
-                                    catch (Exception error)
-                                    {
-                                        log.Warn(ID + " - Error deleting folder: " + error.Message);
-                                    }
-                                }
-                            }
-                        });
-                        if (sourceLock)
-                        {
-                            log.Debug(ID + " - Unsetting source lock");
-                            sourceLock = false;
-                        }
-                    }
-                    else
-                    {
+                        currentFolder = sourceFolder;
                         try
                         {
-                            if (Directory.GetDirectories(sourceFolder, "*", SearchOption.AllDirectories).Count() > 0)
+                            if(Directory.GetDirectories(currentFolder,"*",SearchOption.TopDirectoryOnly).Count() == 0)
                             {
-                                foreach (string dir in Directory.GetDirectories(sourceFolder))
+                                iterate = false;
+                            }
+                            while (Directory.GetDirectories(currentFolder, "*", SearchOption.TopDirectoryOnly).Count() > 0)
+                            {
+                                currentFolder = Directory.GetDirectories(currentFolder, "*", SearchOption.TopDirectoryOnly).First();
+                                //Directory.GetDirectories(currentFolder, "*", SearchOption.TopDirectoryOnly).ToList().ForEach(x => contents.Add(new Tuple<string, List<string>>(x, new List<string>())));
+                            }
+                            files = Directory.GetFiles(currentFolder, "*", SearchOption.TopDirectoryOnly);
+                        }
+                        catch (Exception error)
+                        {
+                            log.Error(ID + " - Unable to get filenames from source");
+                            log.Error(error.Message);
+                            log.Debug(ID + " - Unsetting source lock");
+                            sourceLock = false;
+                            return;
+                        }
+                        log.Debug(ID + " - Checking if file count is greater than 0");
+                        if (files.Count<string>() > 0)
+                        {
+                            log.Debug(string.Format(ID + " - File count is {0}", files.Count<string>()));
+                            log.Debug(string.Format(ID + " - Beginning file iteration of {0}", sourceFolder));
+                            //foreach (string file in files)
+                            Parallel.ForEach<string>(files, (file) =>
+                            {
+                                log.Debug(string.Format(ID + " - Full path is {0}", file));
+                                string fileName = Path.GetFileName(file);
+                                log.Debug(string.Format(ID + " - Filename is {0}", fileName));
+                                string tempFile = file;
+                                bool success = true;
+                                foreach (string rootFolder in destFolders)
                                 {
-                                    if (Directory.GetFiles(dir, "*", SearchOption.AllDirectories).Count() == 0)
+                                    string destFolder = "";
+                                    string destFile = "";
+
+                                    try
                                     {
-                                        log.Info(string.Format(ID + " - Found empty directory, cleaning up directory {0}", dir));
-                                        Directory.Delete(dir, true);
+                                        destFolder = Path.Combine(rootFolder, Path.GetDirectoryName(file).Substring(sourceFolder.Length + 1));
+                                        destFile = Path.Combine(destFolder, fileName);
                                     }
+                                    catch (Exception error)
+                                    {
+                                        log.Error(ID + " - " + error.Message);
+                                        success = false;
+                                        break;
+                                    }
+                                    log.Debug(string.Format(ID + " - Destination filename is {0}", destFile));
+                                    log.Debug(ID + " - Checking if destination folder exists");
+                                    if (!Directory.Exists(destFolder))
+                                    {
+                                        log.Debug(string.Format(ID + " - Destination folder {0} did not exist.  Creating folder now", destFolder));
+                                        try
+                                        {
+                                            Directory.CreateDirectory(destFolder);
+                                        }
+                                        catch (Exception error)
+                                        {
+                                            log.Error(string.Format(ID + " - Unable to create directory: {0}\n\t" + error.Message, destFolder));
+                                            break;
+                                        }
+                                    }
+                                    try
+                                    {
+                                        log.Debug(string.Format(ID + " - Beginning transfer of {0} to {1}", tempFile, destFile));
+                                        File.Copy(tempFile, destFile, true);
+                                        if (localMove)
+                                        {
+                                            tempFile = destFile;
+                                        }
+                                    }
+                                    catch (Exception error)
+                                    {
+                                        log.Error(ID + " - " + error.Message);
+                                        success = false;
+                                        break;
+                                    }
+                                    log.Info(string.Format(ID + " - Successfully copied file {0} to {1}", fileName, destFile));
+                                }
+                                if (success)
+                                {
+                                    log.Debug(string.Format(ID + " - Deleting file {0}", file));
+                                    try
+                                    {
+                                        File.Delete(file);
+                                    }
+                                    catch (Exception error)
+                                    {
+                                        log.Warn(ID + " - Error deleting file: " + error.Message);
+                                    }
+                                }
+                            });
+                            try
+                            {
+                                if (Directory.GetFiles(currentFolder, "*", SearchOption.AllDirectories).Count() == 0)
+                                {
+                                    log.Debug(string.Format(ID + " - Current folder has had all files copied, removing folder {0}", currentFolder));
+                                    Directory.Delete(currentFolder, true);
+                                }
+                            }
+                            catch(Exception error)
+                            {
+                                log.Error(ID + " - " + error.Message);
+                            }
+                        }
+                        else if(currentFolder != sourceFolder)
+                        {
+                            try
+                            {
+                                if (Directory.GetFiles(currentFolder, "*", SearchOption.AllDirectories).Count() == 0)
+                                {
+                                    log.Info(string.Format(ID + " - Found empty directory, cleaning up directory {0}", currentFolder));
+                                    Directory.Delete(currentFolder, true);
+                                }                                   
+                            }
+                            catch (DirectoryNotFoundException error)
+                            {
+                                log.Warn(error.Message);
+                                if (sourceLock)
+                                {
+                                    log.Debug(ID + " - Unsetting source lock");
+                                    sourceLock = false;
+                                }
+                            }
+                            catch (Exception error)
+                            {
+                                log.Debug(ID + " - Folder cleanup error\t" + error.Message);
+                                if (sourceLock)
+                                {
+                                    log.Debug(ID + " - Unsetting source lock");
+                                    sourceLock = false;
                                 }
                             }
                         }
-                        catch(DirectoryNotFoundException error)
+                        else
                         {
-                            log.Warn(error.Message);
-                            if(sourceLock)
-                            {
-                                log.Debug(ID + " - Unsetting source lock");
-                                sourceLock = false;
-                            }
+                            log.Info(ID + " - No files to move");
                         }
-                        catch(Exception error)
-                        {
-                            log.Debug(ID + " - Folder cleanup error\t" + error.Message);
-                            if (sourceLock)
-                            {
-                                log.Debug(ID + " - Unsetting source lock");
-                                sourceLock = false;
-                            }
-                        }
-                        log.Info(ID + " - No files to move");
-                        if (sourceLock)
-                        {
-                            log.Debug(ID + " - Unsetting source lock");
-                            sourceLock = false;
-                        }
+                    }
+                    if (sourceLock)
+                    {
+                        log.Debug(ID + " - Unsetting source lock");
+                        sourceLock = false;
                     }
                 }
                 else
