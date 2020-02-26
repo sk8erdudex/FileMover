@@ -76,8 +76,7 @@ namespace FileMover
                             }
                             while (Directory.GetDirectories(currentFolder, "*", SearchOption.TopDirectoryOnly).Count() > 0)
                             {
-                                currentFolder = Directory.GetDirectories(currentFolder, "*", SearchOption.TopDirectoryOnly).First();
-                                //Directory.GetDirectories(currentFolder, "*", SearchOption.TopDirectoryOnly).ToList().ForEach(x => contents.Add(new Tuple<string, List<string>>(x, new List<string>())));
+                                currentFolder = Directory.GetDirectories(currentFolder, "*", SearchOption.TopDirectoryOnly).First();                                
                             }
                             files = Directory.GetFiles(currentFolder, "*", SearchOption.TopDirectoryOnly);
                         }
@@ -93,8 +92,7 @@ namespace FileMover
                         if (files.Count<string>() > 0)
                         {
                             log.Debug(string.Format(ID + " - File count is {0}", files.Count<string>()));
-                            log.Debug(string.Format(ID + " - Beginning file iteration of {0}", sourceFolder));
-                            //foreach (string file in files)
+                            log.Debug(string.Format(ID + " - Beginning file iteration of {0}", currentFolder));
                             Parallel.ForEach<string>(files, (file) =>
                             {
                                 log.Debug(string.Format(ID + " - Full path is {0}", file));
@@ -165,7 +163,7 @@ namespace FileMover
                             });
                             try
                             {
-                                if (Directory.GetFiles(currentFolder, "*", SearchOption.AllDirectories).Count() == 0)
+                                if (Directory.GetFiles(currentFolder, "*", SearchOption.AllDirectories).Count() == 0 && currentFolder != sourceFolder)
                                 {
                                     log.Debug(string.Format(ID + " - Current folder has had all files copied, removing folder {0}", currentFolder));
                                     Directory.Delete(currentFolder, true);
